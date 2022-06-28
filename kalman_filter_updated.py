@@ -1,4 +1,4 @@
-from numpy import dot, array, diag, eye, zeros, sqrt, square
+from numpy import transpose, dot, array, diag, eye, zeros, matmul, sqrt, square, linalg
 import matplotlib
 from numpy.linalg import inv, det
 from matplotlib import pyplot as plt
@@ -13,33 +13,62 @@ def div_fun(x):
         return 0
 
 class KalmanFilter:
-    def __init__(self):
-        self.transition_matrix = None
-        self.initial_position = (x, y)
-        self._current_position = None
+    def __init__(self, X, P, H, R, F, Q):
+        # X is the initial system state vector
+        self.X = X
+        # P is the initial state uncertainty(covariance) matrix of the current state
+        self.P = P
+        self.current_step = 0
+        # H is the observation matrix
+        self.H = H
+        self.R = R
+        self.F = F
+        self.Q = Q
+        self.kalman_gain = None
+        self.current_position = None
+        self.I = eye(X.shape[0])
 
-        
+    def __call__(self, x, y):
+        self.current_step += 1
+        # step 1: measure
+        self.current_position = array([[x],[y]])
+        if self.current_step == 1:
+            # first iteration
+            self.state_extrapolation()
+            self.covariance_extrapolation()
+        self.calculate_kalman_gain()
+        self.state_estimation()
+        self.update_covariance()
+        self.predict_state()
+        self.predict_covariance()
+        x, y = self.X[0][0], self.X [3][0]
+
+        return x,y
     
-    @property
-    def current_position(self):
-        # return the current position of the object
-        return self._current_position
-    
-    @current_position.setter
-    def current_position(self, x, y):
-        self._current_position = (x, y)
-        self.update()
-
-    # the update method should update the transition matrix based on the predicted position and the actual position
-    def update(self):
-        pass
-
-    # the predict method should accept a vector (actual) and return a predict positon
     def predict_state(self):
-        # pred state = trans matrix * estimated state at previous step + control mat * control var + process noise
-        pass
+        self.X = dot(self.F, self.X)
+    
+    def predict_covariance(self):
+        self.P = linalg.multi_dot([self.F, self.P, transpose(self.F)]) + self.Q
 
+    def calculate_kalman_gain(self):
+        Ht = transpose(self.H)
+        PHt = dot(self.P, Ht)
+        self.kalman_gain = dot(PHt , linalg.inv(dot(self.H, PHt) + self.R))
 
+    def state_extrapolation(self):
+        self.X = dot(self.F, self.X)
+    
+    def state_estimation(self):
+        self.X = self.X + dot(self.kalman_gain, (self.current_position - dot(self.H, self.X)))
+        
+    def covariance_extrapolation(self):
+        Ft = transpose(self.F)
+        self.P = linalg.multi_dot([self.F, self.P, Ft]) + self.Q
+    
+    def update_covariance(self):
+        self.P = linalg.multi_dot([(self.I - dot(self.kalman_gain, self.H)), self.P, transpose(self.I - dot(self.kalman_gain, self.H))]) + linalg.multi_dot([self.kalman_gain, self.R, transpose(self.kalman_gain)])
+        
 
 if __name__ == '__main__':
     # time step of mobile movement
@@ -87,7 +116,19 @@ if __name__ == '__main__':
     # Number of iterations in Kalman Filter
     N_iter = len(x)
     y_true = []
+    y_measured = []
+    x_predictions = []
+    y_predictions = []
+    kf = KalmanFilter(X,P,H,R,F,Q)
     for i in enumerate(x):
         y_true.append(div_fun(i[1]))
-    plt.plot(x, y_true)
+        y_measured.append(y[i[0]])
+        x_pred, y_pred = kf(i[1], y[i[0]])
+        x_predictions.append(x_pred)
+        y_predictions.append(y_pred)
+    print(x_predictions, y_predictions, sep='\n')
+    plt.plot(x, y_true, color='g', label='true')
+    plt.plot(x, y_measured, linestyle='--', marker='o', color='b', label='measured')
+    plt.plot(x_predictions[3:], y_predictions[3:], linestyle='--', marker='o', color='r', label='estimated')
+    plt.legend()
     plt.show()
