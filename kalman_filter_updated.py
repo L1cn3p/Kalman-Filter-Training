@@ -34,39 +34,48 @@ class KalmanFilter:
         self.current_position = array([[x],[y]])
         if self.current_step == 1:
             # first iteration
-            self.state_extrapolation()
-            self.covariance_extrapolation()
-        self.calculate_kalman_gain()
-        self.state_estimation()
-        self.update_covariance()
-        self.predict_state()
-        self.predict_covariance()
+            self.extrapolate()
+        self.update()
+        self.predict()
         x, y = self.X[0][0], self.X [3][0]
 
         return x,y
-    
-    def predict_state(self):
+
+    def extrapolate(self):
+        self._state_extrapolation()
+        self._covariance_extrapolation()
+
+    def update(self):
+        self._calculate_kalman_gain()
+        self._state_estimation()
+        self._update_covariance()
+
+    def predict(self):
+        self._predict_state()
+        self._predict_covariance()
+
+    def _predict_state(self):
         self.X = dot(self.F, self.X)
     
-    def predict_covariance(self):
+    def _predict_covariance(self):
         self.P = linalg.multi_dot([self.F, self.P, transpose(self.F)]) + self.Q
 
-    def calculate_kalman_gain(self):
+    def _calculate_kalman_gain(self):
         Ht = transpose(self.H)
         PHt = dot(self.P, Ht)
         self.kalman_gain = dot(PHt , linalg.inv(dot(self.H, PHt) + self.R))
 
-    def state_extrapolation(self):
+    def _state_extrapolation(self):
         self.X = dot(self.F, self.X)
     
-    def state_estimation(self):
+    def _state_estimation(self):
         self.X = self.X + dot(self.kalman_gain, (self.current_position - dot(self.H, self.X)))
         
-    def covariance_extrapolation(self):
+    def _covariance_extrapolation(self):
         Ft = transpose(self.F)
         self.P = linalg.multi_dot([self.F, self.P, Ft]) + self.Q
     
-    def update_covariance(self):
+    def _update_covariance(self):
         self.P = linalg.multi_dot([(self.I - dot(self.kalman_gain, self.H)), self.P, transpose(self.I - dot(self.kalman_gain, self.H))]) + linalg.multi_dot([self.kalman_gain, self.R, transpose(self.kalman_gain)])
         
 
@@ -126,9 +135,9 @@ if __name__ == '__main__':
         x_pred, y_pred = kf(i[1], y[i[0]])
         x_predictions.append(x_pred)
         y_predictions.append(y_pred)
-    print(x_predictions, y_predictions, sep='\n')
-    plt.plot(x, y_true, color='g', label='true')
     plt.plot(x, y_measured, linestyle='--', marker='o', color='b', label='measured')
     plt.plot(x_predictions[3:], y_predictions[3:], linestyle='--', marker='o', color='r', label='estimated')
+    plt.plot(x, y_true, color='g', label='true')
+    # plt.plot(x[3:], y_predictions[3:], linestyle='--', marker='o', color='y', label='estimated')
     plt.legend()
     plt.show()
